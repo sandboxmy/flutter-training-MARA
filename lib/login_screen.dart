@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'home_page.dart';
 import 'register_screen.dart';
+import 'task_service.dart';
 
 const Color primary = Color(0xFF6C72C9);
 
 /// LOGIN SCREEN
-/// Email + password form with validation, then open Home.
+/// Email + password form with validation, then API login → Home.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.prefilledEmail, this.prefilledName});
 
@@ -22,11 +23,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _form = GlobalKey<FormState>();
+  final TaskService _taskService = TaskService();
 
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
 
   bool hidePassword = true;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -41,17 +44,55 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Submit login form to API
   Future<void> _submit() async {
     // Validate email + password
     if (!_form.currentState!.validate()) return;
+    if (_loading) return;
 
-    final name = widget.prefilledName ?? 'User';
+    setState(() => _loading = true);
 
-    Navigator.pushReplacementNamed(
-      context,
-      HomePage.routeName,
-      arguments: {'username': name, 'email': _email.text.trim()},
-    );
+    try {
+      final auth = await _taskService.login(
+        email: _email.text.trim(),
+        password: _password.text,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login successful! Welcome, ${auth.user.name}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Token kept in memory via route args (no SharedPreferences yet)
+      Navigator.pushReplacementNamed(
+        context,
+        HomePage.routeName,
+        arguments: {
+          'username': auth.user.name,
+          'email': auth.user.email,
+          'token': auth.token,
+        },
+      );
+    } on TaskServiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -88,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Email
                     TextFormField(
                       controller: _email,
+                      enabled: !_loading,
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.email_outlined),
@@ -103,17 +145,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Password
                     TextFormField(
                       controller: _password,
+                      enabled: !_loading,
                       obscureText: hidePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              hidePassword = !hidePassword;
-                            });
-                          },
+                          onPressed: _loading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    hidePassword = !hidePassword;
+                                  });
+                                },
                           icon: Icon(
                             hidePassword
                                 ? Icons.visibility_off
@@ -135,8 +180,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        onPressed: _submit,
-                        child: const Text('Log In'),
+                        onPressed: _loading ? null : _submit,
+                        child: _loading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Log In'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -145,14 +199,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterScreen(),
-                            ),
-                          );
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const RegisterScreen(),
+                                  ),
+                                );
+                              },
                         child: const Text('Create an Account'),
                       ),
                     ),
