@@ -134,6 +134,59 @@ class TaskService {
         .map((e) => TodoTask.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// POST `/api/todos` — multipart/form-data (title required).
+  Future<TodoTask> createTodo({
+    required String token,
+    required String title,
+    String? description,
+    DateTime? dueDate,
+  }) async {
+    if (token.isEmpty) {
+      throw const TaskServiceException(
+        'Missing auth token. Please login again.',
+      );
+    }
+
+    final trimmedTitle = title.trim();
+    if (trimmedTitle.isEmpty) {
+      throw const TaskServiceException('Title is required.');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/todos'),
+    );
+    request.headers.addAll(_authHeaders(token: token));
+    request.fields['title'] = trimmedTitle;
+
+    final trimmedDescription = description?.trim();
+    if (trimmedDescription != null && trimmedDescription.isNotEmpty) {
+      request.fields['description'] = trimmedDescription;
+    }
+
+    if (dueDate != null) {
+      final y = dueDate.year.toString().padLeft(4, '0');
+      final m = dueDate.month.toString().padLeft(2, '0');
+      final d = dueDate.day.toString().padLeft(2, '0');
+      request.fields['due_date'] = '$y-$m-$d';
+    }
+
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      _throwForStatus(response: response, action: 'create todo');
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = decoded['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const TaskServiceException('Missing todo data in create response.');
+    }
+
+    return TodoTask.fromJson(data);
+  }
 }
 
 /// Response from login / register: `{ token, user }`

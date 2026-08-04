@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_training_mara/sample_row.dart';
 
+import 'create_todo_screen.dart';
 import 'login_screen.dart';
 import 'sample_bottom_navigation.dart';
 import 'sample_button.dart';
@@ -138,6 +139,30 @@ class _HomePageState extends State<HomePage> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _openCreateTodo() async {
+    final token = widget.token;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing auth token. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final created = await Navigator.push<TodoTask>(
+      context,
+      MaterialPageRoute(builder: (_) => CreateTodoScreen(token: token)),
+    );
+
+    if (created != null && mounted) {
+      setState(() {
+        _todosFuture = _fetchTodos();
+      });
     }
   }
 
@@ -311,9 +336,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: _primary,
         foregroundColor: Colors.white,
         tooltip: 'Create todo',
-        onPressed: () {
-          // TODO: call create todo API later
-        },
+        onPressed: _openCreateTodo,
         child: const Icon(Icons.add),
       ),
     );
