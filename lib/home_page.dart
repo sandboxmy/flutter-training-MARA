@@ -12,6 +12,7 @@ import 'sample_icon.dart';
 import 'sample_list_tile.dart';
 import 'sample_listview_builder.dart';
 import 'sample_navigation.dart';
+import 'sample_news_api.dart';
 import 'sample_stack.dart';
 import 'sample_stateful_widget.dart';
 import 'sample_stateless_widget.dart';
@@ -19,14 +20,22 @@ import 'sample_text_widget.dart';
 import 'sample_todo_list.dart';
 import 'sample_wrap.dart';
 
-/// Home screen after login/register — My Tasks + drawer of samples
+/// Home screen after login/register — user info + drawer of samples
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, this.username = 'User', this.email});
+  const HomePage({
+    super.key,
+    this.username = 'User',
+    this.email,
+    this.token,
+  });
 
   static const String routeName = '/home';
 
   final String username;
   final String? email;
+
+  /// Auth token from login/register (in memory only — not SharedPreferences yet)
+  final String? token;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -34,13 +43,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   static const Color _primary = Color(0xFF6C72C9);
-
-  // Fixed tasks — no create/add UI
-  final List<Map<String, dynamic>> _tasks = [
-    {'title': 'Laundry', 'done': true},
-    {'title': 'Grocery', 'done': true},
-    {'title': 'Car wash', 'done': false},
-  ];
 
   // Each item: title + screen to open
   static final List<Map<String, dynamic>> samples = [
@@ -75,18 +77,9 @@ class _HomePageState extends State<HomePage> {
       'title': 'Navigation (Pass Data)',
       'screen': const SampleNavigationScreen(),
     },
+    {'title': 'Public News API', 'screen': const NewsAPI()},
     {'title': 'Exercise: To-Do List', 'screen': const SampleTodoListScreen()},
   ];
-
-  int get _doneCount => _tasks.where((t) => t['done'] == true).length;
-
-  double get _progress => _tasks.isEmpty ? 0 : _doneCount / _tasks.length;
-
-  void _toggleTask(int index) {
-    setState(() {
-      _tasks[index]['done'] = !(_tasks[index]['done'] as bool);
-    });
-  }
 
   void _logout() {
     Navigator.pushReplacementNamed(context, LoginScreen.routeName);
@@ -101,12 +94,6 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: _primary,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.sync),
-            onPressed: () {
-              setState(() {}); // simple refresh
-            },
-          ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
@@ -162,93 +149,25 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: ListView(
+      body: Padding(
         padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            'Hello, ${widget.username}!',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            '${widget.email}',
-            style: const TextStyle(fontSize: 16, color: Colors.black54),
-          ),
-          // Progress card
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hello, ${widget.username}!',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Progress',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        '$_doneCount / ${_tasks.length} done',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: _progress,
-                      minHeight: 8,
-                      backgroundColor: Colors.grey.shade200,
-                      color: _primary,
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              '${widget.email}',
+              style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
-          ),
-          const SizedBox(height: 12),
-
-          // Fixed task list (no add field)
-          ...List.generate(_tasks.length, (index) {
-            final task = _tasks[index];
-            final done = task['done'] as bool;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  leading: Checkbox(
-                    value: done,
-                    activeColor: _primary,
-                    onChanged: (_) => _toggleTask(index),
-                  ),
-                  title: Text(
-                    task['title'] as String,
-                    style: TextStyle(
-                      decoration: done ? TextDecoration.lineThrough : null,
-                      color: done ? Colors.grey : Colors.black87,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  onTap: () => _toggleTask(index),
-                ),
-              ),
-            );
-          }),
-        ],
+            Text(
+              'My token: ${widget.token}',
+              style: const TextStyle(fontSize: 16, color: Colors.black54),
+            ),
+          ],
+        ),
       ),
     );
   }

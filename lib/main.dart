@@ -32,6 +32,7 @@ class MyApp extends StatelessWidget {
           return HomePage(
             username: args?['username'] as String? ?? 'User',
             email: args?['email'] as String?,
+            token: args?['token'] as String?,
           );
         },
         SampleTodoListScreen.routeName: (context) =>
