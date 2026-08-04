@@ -19,15 +19,11 @@ import 'sample_stateless_widget.dart';
 import 'sample_text_widget.dart';
 import 'sample_todo_list.dart';
 import 'sample_wrap.dart';
+import 'task_service.dart';
 
 /// Home screen after login/register — user info + drawer of samples
 class HomePage extends StatefulWidget {
-  const HomePage({
-    super.key,
-    this.username = 'User',
-    this.email,
-    this.token,
-  });
+  const HomePage({super.key, this.username = 'User', this.email, this.token});
 
   static const String routeName = '/home';
 
@@ -43,6 +39,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   static const Color _primary = Color(0xFF6C72C9);
+
+  final TaskService _taskService = TaskService();
+
+  List<TodoTask> _todos = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  late Future<void> _todosFuture;
 
   // Each item: title + screen to open
   static final List<Map<String, dynamic>> samples = [
@@ -83,6 +86,59 @@ class _HomePageState extends State<HomePage> {
 
   void _logout() {
     Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+  }
+
+  int get _doneCount => _todos.where((t) => t.isCompleted).length;
+
+  double get _progress => _todos.isEmpty ? 0 : _doneCount / _todos.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _todosFuture = _fetchTodos();
+  }
+
+  Future<void> _fetchTodos() async {
+    final token = widget.token;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Missing auth token. Please login again.';
+        _todos = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final todos = await _taskService.fetchTodos(token: token);
+      if (!mounted) return;
+      setState(() {
+        _todos = todos;
+      });
+    } on TaskServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _todos = [];
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _todos = [];
+        _errorMessage = 'Failed to load tasks: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -166,8 +222,99 @@ class _HomePageState extends State<HomePage> {
               'My token: ${widget.token}',
               style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
+
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Progress',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          '$_doneCount / ${_todos.length} done',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: _progress,
+                        minHeight: 8,
+                        backgroundColor: Colors.grey.shade200,
+                        color: _primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: FutureBuilder<void>(
+                future: _todosFuture,
+                builder: (context, snapshot) {
+                  if (_isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (_errorMessage != null) {
+                    return Center(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  } else if (_todos.isEmpty) {
+                    return const Center(child: Text('No tasks found.'));
+                  } else {
+                    return ListView.builder(
+                      itemCount: _todos.length,
+                      itemBuilder: (context, index) {
+                        final task = _todos[index];
+                        return ListTile(
+                          title: Text(task.title),
+                          subtitle: Text(task.description),
+                          trailing: Icon(
+                            task.isCompleted
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: task.isCompleted
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
+            ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: _primary,
+        foregroundColor: Colors.white,
+        tooltip: 'Create todo',
+        onPressed: () {
+          // TODO: call create todo API later
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }

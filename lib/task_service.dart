@@ -16,9 +16,14 @@ class TaskService {
   final String baseUrl;
 
   Map<String, String> get _jsonHeaders => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  Map<String, String> _authHeaders({required String token}) => {
+    'Authorization': 'Bearer $token',
+    'Accept': 'application/json',
+  };
 
   Never _throwForStatus({
     required http.Response response,
@@ -92,10 +97,7 @@ class TaskService {
     final response = await _client.post(
       Uri.parse('$baseUrl/login'),
       headers: _jsonHeaders,
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
+      body: jsonEncode({'email': email, 'password': password}),
     );
 
     if (response.statusCode != 200) {
@@ -106,14 +108,37 @@ class TaskService {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
   }
+
+  /// GET `/api/todos` — pass the token from login/register (in memory).
+  Future<List<TodoTask>> fetchTodos({required String token}) async {
+    if (token.isEmpty) {
+      throw const TaskServiceException(
+        'Missing auth token. Please login again.',
+      );
+    }
+
+    final response = await _client.get(
+      Uri.parse('$baseUrl/todos'), //url
+      headers: _authHeaders(token: token), // auth token
+    );
+
+    if (response.statusCode != 200) {
+      _throwForStatus(response: response, action: 'fetch todos');
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = decoded['data'];
+    final list = (data is List) ? data : <dynamic>[];
+
+    return list
+        .map((e) => TodoTask.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }
 
 /// Response from login / register: `{ token, user }`
 class AuthResult {
-  const AuthResult({
-    required this.token,
-    required this.user,
-  });
+  const AuthResult({required this.token, required this.user});
 
   final String token;
   final ApiUser user;
@@ -129,19 +154,12 @@ class AuthResult {
       throw const TaskServiceException('Missing user in auth response.');
     }
 
-    return AuthResult(
-      token: token,
-      user: ApiUser.fromJson(userRaw),
-    );
+    return AuthResult(token: token, user: ApiUser.fromJson(userRaw));
   }
 }
 
 class ApiUser {
-  const ApiUser({
-    required this.id,
-    required this.name,
-    required this.email,
-  });
+  const ApiUser({required this.id, required this.name, required this.email});
 
   final int id;
   final String name;
@@ -157,6 +175,62 @@ class ApiUser {
       id: id,
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
+    );
+  }
+}
+
+class TodoTask {
+  const TodoTask({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.isCompleted,
+    this.dueDate,
+    this.mediaUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final int id;
+  final String title;
+  final String description;
+  final bool isCompleted;
+  final DateTime? dueDate;
+  final String? mediaUrl;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  static bool _parseBool(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    if (v is String) {
+      final s = v.trim().toLowerCase();
+      return s == '1' || s == 'true' || s == 'yes';
+    }
+    return false;
+  }
+
+  static DateTime? _tryParseDateTime(dynamic v) {
+    if (v is! String || v.isEmpty) return null;
+    return DateTime.tryParse(v);
+  }
+
+  factory TodoTask.fromJson(Map<String, dynamic> json) {
+    final idRaw = json['id'];
+    final id = idRaw is int
+        ? idRaw
+        : int.tryParse(idRaw?.toString() ?? '') ??
+              (throw const TaskServiceException('Invalid todo id.'));
+
+    return TodoTask(
+      id: id,
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      isCompleted: _parseBool(json['is_completed']),
+      dueDate: _tryParseDateTime(json['due_date']),
+      mediaUrl: json['media_url']?.toString(),
+      createdAt: _tryParseDateTime(json['created_at']),
+      updatedAt: _tryParseDateTime(json['updated_at']),
     );
   }
 }
