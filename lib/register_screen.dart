@@ -6,7 +6,7 @@ import 'task_service.dart';
 
 /// REGISTER SCREEN
 /// Form with optional username, required email + password.
-/// After API register → go to Home with name, email, and token.
+/// After API register → go to Home (data from SharedPreferences).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -64,16 +64,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
 
-      // Token kept in memory via route args (no SharedPreferences yet)
-      Navigator.pushReplacementNamed(
-        context,
-        HomePage.routeName,
-        arguments: {
-          'username': auth.user.name,
-          'email': auth.user.email,
-          'token': auth.token,
-        },
-      );
+      // Token, name, email already saved in SharedPreferences by TaskService
+      Navigator.pushReplacementNamed(context, HomePage.routeName);
     } on TaskServiceException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

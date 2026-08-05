@@ -3,13 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 
+import 'home_page.dart';
 import 'login_screen.dart';
+import 'utils/shared_preferences_utils.dart';
 
 /// Primary color used by To-Do App samples
 const Color kPrimary = Color(0xFF6C72C9);
 
 /// LOADING (SPLASH) SCREEN
-/// Shows app logo for 2 seconds, then goes to Login.
+/// Shows app logo for 2 seconds, then goes to Home (if token) or Login.
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
 
@@ -24,14 +26,18 @@ class _LoadingScreenState extends State<LoadingScreen> {
   void initState() {
     super.initState();
 
-    // Wait 2 seconds, then open Login screen
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      final token = SharedPreferencesUtils().getToken;
+      if (token.isNotEmpty) {
+        Navigator.pushReplacementNamed(context, HomePage.routeName);
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
     });
   }
 

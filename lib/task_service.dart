@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'utils/shared_preferences_utils.dart';
+
 /// Client for the Laravel To-Do API.
 ///
-/// Currently: POST `/api/register` and POST `/api/login`.
-/// Fetch todos comes later.
+/// After login/register, token is saved via SharedPreferencesUtils.
 class TaskService {
   TaskService({
     http.Client? client,
@@ -14,6 +15,7 @@ class TaskService {
 
   final http.Client _client;
   final String baseUrl;
+  final SharedPreferencesUtils _prefs = SharedPreferencesUtils();
 
   Map<String, String> get _jsonHeaders => {
     'Content-Type': 'application/json',
@@ -24,6 +26,13 @@ class TaskService {
     'Authorization': 'Bearer $token',
     'Accept': 'application/json',
   };
+
+  // Save token, name, and email after login / register
+  Future<void> _saveLoginData(AuthResult auth) async {
+    await _prefs.setToken(auth.token);
+    await _prefs.setName(auth.user.name);
+    await _prefs.setEmail(auth.user.email);
+  }
 
   Never _throwForStatus({
     required http.Response response,
@@ -84,9 +93,11 @@ class TaskService {
       _throwForStatus(response: response, action: 'register');
     }
 
-    return AuthResult.fromJson(
+    final auth = AuthResult.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await _saveLoginData(auth);
+    return auth;
   }
 
   /// POST `/api/login`
@@ -104,22 +115,25 @@ class TaskService {
       _throwForStatus(response: response, action: 'login');
     }
 
-    return AuthResult.fromJson(
+    final auth = AuthResult.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await _saveLoginData(auth);
+    return auth;
   }
 
-  /// GET `/api/todos` — pass the token from login/register (in memory).
-  Future<List<TodoTask>> fetchTodos({required String token}) async {
-    if (token.isEmpty) {
+  /// GET `/api/todos` — reads token from SharedPreferences
+  Future<List<TodoTask>> fetchTodos() async {
+    final myToken = _prefs.getToken;
+    if (myToken.isEmpty) {
       throw const TaskServiceException(
         'Missing auth token. Please login again.',
       );
     }
 
     final response = await _client.get(
-      Uri.parse('$baseUrl/todos'), //url
-      headers: _authHeaders(token: token), // auth token
+      Uri.parse('$baseUrl/todos'),
+      headers: _authHeaders(token: myToken),
     );
 
     if (response.statusCode != 200) {
@@ -136,13 +150,14 @@ class TaskService {
   }
 
   /// POST `/api/todos` — multipart/form-data (title required).
+  /// Reads token from SharedPreferences.
   Future<TodoTask> createTodo({
-    required String token,
     required String title,
     String? description,
     DateTime? dueDate,
   }) async {
-    if (token.isEmpty) {
+    final myToken = _prefs.getToken;
+    if (myToken.isEmpty) {
       throw const TaskServiceException(
         'Missing auth token. Please login again.',
       );
@@ -153,11 +168,8 @@ class TaskService {
       throw const TaskServiceException('Title is required.');
     }
 
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/todos'),
-    );
-    request.headers.addAll(_authHeaders(token: token));
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/todos'));
+    request.headers.addAll(_authHeaders(token: myToken));
     request.fields['title'] = trimmedTitle;
 
     final trimmedDescription = description?.trim();

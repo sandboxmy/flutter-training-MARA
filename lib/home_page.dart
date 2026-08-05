@@ -21,18 +21,13 @@ import 'sample_text_widget.dart';
 import 'sample_todo_list.dart';
 import 'sample_wrap.dart';
 import 'task_service.dart';
+import 'utils/shared_preferences_utils.dart';
 
 /// Home screen after login/register — user info + drawer of samples
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, this.username = 'User', this.email, this.token});
+  const HomePage({super.key});
 
   static const String routeName = '/home';
-
-  final String username;
-  final String? email;
-
-  /// Auth token from login/register (in memory only — not SharedPreferences yet)
-  final String? token;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -42,11 +37,22 @@ class _HomePageState extends State<HomePage> {
   static const Color _primary = Color(0xFF6C72C9);
 
   final TaskService _taskService = TaskService();
+  final SharedPreferencesUtils _prefs = SharedPreferencesUtils();
 
   List<TodoTask> _todos = [];
   bool _isLoading = true;
   String? _errorMessage;
   late Future<void> _todosFuture;
+
+  // Read saved user data from SharedPreferences
+  String get _displayName {
+    final name = _prefs.getName;
+    return name.isEmpty ? 'User' : name;
+  }
+
+  String get _displayEmail => _prefs.getEmail;
+
+  String get _displayToken => _prefs.getToken;
 
   // Each item: title + screen to open
   static final List<Map<String, dynamic>> samples = [
@@ -85,7 +91,9 @@ class _HomePageState extends State<HomePage> {
     {'title': 'Exercise: To-Do List', 'screen': const SampleTodoListScreen()},
   ];
 
-  void _logout() {
+  Future<void> _logout() async {
+    await _prefs.clearSharedPreferences();
+    if (!mounted) return;
     Navigator.pushReplacementNamed(context, LoginScreen.routeName);
   }
 
@@ -100,8 +108,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchTodos() async {
-    final token = widget.token;
-    if (token == null || token.isEmpty) {
+    final token = _displayToken;
+    if (token.isEmpty) {
       setState(() {
         _isLoading = false;
         _errorMessage = 'Missing auth token. Please login again.';
@@ -116,7 +124,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final todos = await _taskService.fetchTodos(token: token);
+      final todos = await _taskService.fetchTodos();
       if (!mounted) return;
       setState(() {
         _todos = todos;
@@ -143,8 +151,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openCreateTodo() async {
-    final token = widget.token;
-    if (token == null || token.isEmpty) {
+    if (_displayToken.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Missing auth token. Please login again.'),
@@ -156,7 +163,7 @@ class _HomePageState extends State<HomePage> {
 
     final created = await Navigator.push<TodoTask>(
       context,
-      MaterialPageRoute(builder: (_) => CreateTodoScreen(token: token)),
+      MaterialPageRoute(builder: (_) => const CreateTodoScreen()),
     );
 
     if (created != null && mounted) {
@@ -191,16 +198,16 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hi, ${widget.username}',
+                      'Hi, $_displayName',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (widget.email != null && widget.email!.isNotEmpty)
+                    if (_displayEmail.isNotEmpty)
                       Text(
-                        widget.email!,
+                        _displayEmail,
                         style: const TextStyle(color: Colors.white70),
                       ),
                   ],
@@ -236,15 +243,15 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, ${widget.username}!',
+              'Hello, $_displayName!',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             Text(
-              '${widget.email}',
+              _displayEmail,
               style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
             Text(
-              'My token: ${widget.token}',
+              'My token: $_displayToken',
               style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
 

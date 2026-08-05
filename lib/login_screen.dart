@@ -67,16 +67,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // Token kept in memory via route args (no SharedPreferences yet)
-      Navigator.pushReplacementNamed(
-        context,
-        HomePage.routeName,
-        arguments: {
-          'username': auth.user.name,
-          'email': auth.user.email,
-          'token': auth.token,
-        },
-      );
+      // Token, name, email already saved in SharedPreferences by TaskService
+      Navigator.pushReplacementNamed(context, HomePage.routeName);
     } on TaskServiceException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

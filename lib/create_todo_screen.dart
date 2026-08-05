@@ -4,12 +4,10 @@ import 'task_service.dart';
 
 /// Form screen to create a todo via POST `/api/todos`.
 class CreateTodoScreen extends StatefulWidget {
-  const CreateTodoScreen({super.key, required this.token});
+  const CreateTodoScreen({super.key});
 
   static const String routeName = '/create-todo';
   static const Color primary = Color(0xFF6C72C9);
-
-  final String token;
 
   @override
   State<CreateTodoScreen> createState() => _CreateTodoScreenState();
@@ -72,7 +70,6 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
 
     try {
       final todo = await _taskService.createTodo(
-        token: widget.token,
         title: _title.text,
         description: _description.text,
         dueDate: _dueDate,
